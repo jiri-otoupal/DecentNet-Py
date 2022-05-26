@@ -12,8 +12,8 @@ from decentnet.modules.pow.difficulty import Difficulty
 
 class PoW:
     def __init__(self, input_hash: int, diff: Difficulty):
-        self.finished_nonce: Optional[HashType] = None
-        self.finished_hash: Optional[int] = None
+        self.finished_nonce: Optional[int] = None
+        self.finished_hash: Optional[HashType] = None
         self.previous_hash = input_hash
         self.difficulty = diff
 
