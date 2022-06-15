@@ -1,7 +1,6 @@
 import unittest
 
 from decentnet.modules.pow.difficulty import Difficulty
-
 from decentnet.modules.pow.pow import PoW
 
 

@@ -1,3 +1,4 @@
+import time
 from typing import Optional
 
 import pyximport
@@ -16,6 +17,7 @@ class PoW:
         self.finished_hash: Optional[HashType] = None
         self.previous_hash = input_hash
         self.difficulty = diff
+        self.compute_time = None
 
     def compute(self):
         nonce = 0
@@ -29,4 +31,5 @@ class PoW:
 
         self.finished_hash = hash_t
         self.finished_nonce = nonce
+
         return self
