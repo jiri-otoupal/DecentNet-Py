@@ -14,7 +14,7 @@ import tensorflow_probability as tfp
 tfd = tfp.distributions
 
 
-def posterior_mean_field(kernel_size, bias_size=0, dtype=None):
+def posterior_mean_field(kernel_size, bias_size=0.5, dtype=None):
     n = kernel_size + bias_size
     c = np.log(np.expm1(1.))
     return tf.keras.Sequential([
@@ -36,7 +36,7 @@ def prior_trainable(kernel_size, bias_size=0, dtype=None):
     ])
 
 
-samples = 8000
+samples = 512
 
 t = np.linspace(1, 64, num=samples)
 p = np.linspace(1, 8, num=samples)
@@ -46,50 +46,55 @@ h = np.linspace(20, 30, num=samples)
 
 x_train = np.vstack([t, m, p, n, h]).transpose()
 
-res = []
+print("Computing samples")
 
-for line in x_train.astype(int).tolist():
-    diff = Difficulty(*line)
+try:
+    y_train = np.loadtxt("y.txt")
+except:
+    res = []
+    for line in x_train.astype(int).tolist():
+        diff = Difficulty(*line)
 
-    print(f"Computing {diff}")
-    b = time.time_ns()
-    pw = PoW(0x1215245645132123152354564541, diff).compute()
-    a = time.time_ns() - b
+        print(f"Computing {diff}")
+        b = time.time()
+        pw = PoW(0x1215245645132123152354564541, diff).compute()
+        a = round((time.time() - b) * 1000)
 
-    res.append(a)
+        res.append(a)
 
-y_train = np.array(res)
+    y_train = np.array(res)
+
+    np.savetxt("y.txt", y_train)
+
+epochs = 512
 
 model = tf.keras.Sequential([
-    Dense(512, activation='relu'),
-    Dense(512, activation='relu'),
-    Dense(64, activation='relu'),
-    Dense(32, activation='relu'),
-    tfp.layers.DenseVariational(1 + 1, posterior_mean_field, prior_trainable,
-                                kl_weight=1 / p.shape[0]),
+    tfp.layers.DenseVariational(x_train.shape[0] * 2, posterior_mean_field,
+                                prior_trainable,
+                                kl_weight=1 / x_train.shape[0]),
+    Dropout(0.1),
+    tfp.layers.DenseVariational(x_train.shape[0], posterior_mean_field,
+                                prior_trainable,
+                                kl_weight=1 / x_train.shape[0]),
     tfp.layers.DistributionLambda(
         lambda t: tfd.Normal(loc=t[..., :1],
                              scale=1e-3 + tf.math.softplus(0.01 * t[..., 1:]))),
-
-    Dense(1)
+    Dense(1, activation="gelu")
 ])
 
 model.compile(loss='mean_absolute_error',
-              optimizer=tf.keras.optimizers.Adam(0.001, learning_rate=0.1),
+              optimizer=tf.keras.optimizers.Adam(0.001),
               metrics=[tf.keras.metrics.Accuracy()])
 
-np.savetxt("x.txt", x_train)
-np.savetxt("y.txt", y_train)
-
-model.fit(x_train, y_train, epochs=512)
+model.fit(x_train, y_train, epochs=epochs)
 
 print(model.summary())
 
-l = [64, 1, 1, 64, 25]
+l = [32, 64, 1, 64, 25]
 
-b = time.time_ns()
+b = time.time()
 PoW(0x1215245645132123152354564541, Difficulty(*l)).compute()
-ctime = time.time_ns() - b
+ctime = round((time.time() - b) * 1000)
 
 print(f"Actual {ctime}")
 predict = model.predict(np.array([l]))
