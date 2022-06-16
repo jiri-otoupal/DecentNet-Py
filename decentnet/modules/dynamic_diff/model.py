@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 import tensorflow.compat.v2 as tf
-from keras.layers import Dense, Dropout
+from keras.layers import Dense, Dropout, Conv1D
 
 from decentnet.modules.pow.difficulty import Difficulty
 from decentnet.modules.pow.pow import PoW
@@ -46,8 +46,6 @@ h = np.linspace(20, 30, num=samples)
 
 x_train = np.vstack([t, m, p, n, h]).transpose()
 
-print("Computing samples")
-
 try:
     y_train = np.loadtxt("y.txt")
 except:
@@ -66,19 +64,14 @@ except:
 
     np.savetxt("y.txt", y_train)
 
-epochs = 512
+epochs = round(samples + 0.15 * samples)
 
 model = tf.keras.Sequential([
-    tfp.layers.DenseVariational(x_train.shape[0] * 2, posterior_mean_field,
-                                prior_trainable,
-                                kl_weight=1 / x_train.shape[0]),
-    Dropout(0.1),
-    tfp.layers.DenseVariational(x_train.shape[0], posterior_mean_field,
-                                prior_trainable,
+    tfp.layers.DenseVariational(5, posterior_mean_field, prior_trainable,
                                 kl_weight=1 / x_train.shape[0]),
     tfp.layers.DistributionLambda(
         lambda t: tfd.Normal(loc=t[..., :1],
-                             scale=1e-3 + tf.math.softplus(0.01 * t[..., 1:]))),
+                             scale=1e-3 + tf.math.softplus(0.1 * t[..., 1:]))),
     Dense(1, activation="gelu")
 ])
 
