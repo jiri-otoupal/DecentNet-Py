@@ -1,3 +1,4 @@
+import random
 import time
 
 import numpy as np
@@ -67,11 +68,11 @@ except:
 epochs = round(samples + 0.15 * samples)
 
 model = tf.keras.Sequential([
-    tfp.layers.DenseVariational(5, posterior_mean_field, prior_trainable,
+    tfp.layers.DenseVariational(2, posterior_mean_field, prior_trainable,
                                 kl_weight=1 / x_train.shape[0]),
     tfp.layers.DistributionLambda(
         lambda t: tfd.Normal(loc=t[..., :1],
-                             scale=1e-3 + tf.math.softplus(0.1 * t[..., 1:]))),
+                             scale=1e-3 + tf.math.softplus(0.01 * t[..., 1:]))),
     Dense(1, activation="gelu")
 ])
 
@@ -83,13 +84,22 @@ model.fit(x_train, y_train, epochs=epochs)
 
 print(model.summary())
 
-l = [32, 64, 1, 64, 25]
+diffs = []
+predictions = 32
 
-b = time.time()
-PoW(0x1215245645132123152354564541, Difficulty(*l)).compute()
-ctime = round((time.time() - b) * 1000)
+for _ in range(predictions):
+    l = [random.randint(1, 64), random.randint(8, 1000), 1, 64, 25]
 
-print(f"Actual {ctime}")
-predict = model.predict(np.array([l]))
-print(f"Predicted {predict}")
-print(f"Diff {ctime - predict}")
+    b = time.time()
+    PoW(0x1215245645132123152354564541, Difficulty(*l)).compute()
+    ctime = round((time.time() - b) * 1000)
+
+    print(f"Actual {ctime}")
+    predict = model.predict(np.array([l]))
+    print(f"Predicted {predict}")
+    diff = ctime - predict
+    print(f"Diff {diff}")
+    diffs.append(diff)
+    model.fit([l], [ctime], epochs=50)
+
+print(f"Mean diff from {np.mean(diffs)} ms {predictions=}")
