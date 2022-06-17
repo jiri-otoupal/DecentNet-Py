@@ -15,7 +15,7 @@ import tensorflow_probability as tfp
 tfd = tfp.distributions
 
 
-def posterior_mean_field(kernel_size, bias_size=0.5, dtype=None):
+def posterior_mean_field(kernel_size, bias_size=0.1, dtype=None):
     n = kernel_size + bias_size
     c = np.log(np.expm1(1.))
     return tf.keras.Sequential([
@@ -27,7 +27,7 @@ def posterior_mean_field(kernel_size, bias_size=0.5, dtype=None):
     ])
 
 
-def prior_trainable(kernel_size, bias_size=0, dtype=None):
+def prior_trainable(kernel_size, bias_size=0.01, dtype=None):
     n = kernel_size + bias_size
     return tf.keras.Sequential([
         tfp.layers.VariableLayer(n, dtype=dtype),
@@ -55,9 +55,9 @@ except:
         diff = Difficulty(*line)
 
         print(f"Computing {diff}")
-        b = time.time()
+        b = time.time_ns()
         pw = PoW(0x1215245645132123152354564541, diff).compute()
-        a = round((time.time() - b) * 1000)
+        a = time.time_ns() - b
 
         res.append(a)
 
@@ -68,31 +68,33 @@ except:
 epochs = round(samples + 0.15 * samples)
 
 model = tf.keras.Sequential([
-    tfp.layers.DenseVariational(2, posterior_mean_field, prior_trainable,
+    tfp.layers.DenseVariational(15, posterior_mean_field, prior_trainable,
                                 kl_weight=1 / x_train.shape[0]),
     tfp.layers.DistributionLambda(
         lambda t: tfd.Normal(loc=t[..., :1],
                              scale=1e-3 + tf.math.softplus(0.01 * t[..., 1:]))),
-    Dense(1, activation="gelu")
+    Dense(8, activation="relu"),
+    Dense(1, activation="relu")
 ])
 
 model.compile(loss='mean_absolute_error',
-              optimizer=tf.keras.optimizers.Adam(0.001),
-              metrics=[tf.keras.metrics.Accuracy()])
+              optimizer=tf.keras.optimizers.Adam(0.05))
 
 model.fit(x_train, y_train, epochs=epochs)
 
 print(model.summary())
 
+actual = []
 diffs = []
-predictions = 32
+predictions = 1000
 
 for _ in range(predictions):
-    l = [random.randint(1, 64), random.randint(8, 1000), 1, 64, 25]
+    l = [random.randint(1, 64), random.randint(8, 1000), random.randint(1, 8),
+         random.randint(1, 20), 25]
 
-    b = time.time()
+    b = time.time_ns()
     PoW(0x1215245645132123152354564541, Difficulty(*l)).compute()
-    ctime = round((time.time() - b) * 1000)
+    ctime = time.time_ns() - b
 
     print(f"Actual {ctime}")
     predict = model.predict(np.array([l]))
@@ -100,6 +102,15 @@ for _ in range(predictions):
     diff = ctime - predict
     print(f"Diff {diff}")
     diffs.append(diff)
-    model.fit([l], [ctime], epochs=50)
+    actual.append(ctime)
+    # model.fit([l], [ctime], epochs=50) # Uncomment for continuous learning
 
-print(f"Mean diff from {np.mean(diffs)} ms {predictions=}")
+# nanoseconds to milli
+diffs_ = abs(np.mean(diffs) / 1000000)
+actual_ = np.mean(actual) / 1000000
+
+print(f"Mean Actual Computation time {actual_} ms")
+
+print(f"Mean diff {diffs_} ms for {predictions=}")
+
+print(f"Mean Variance {(diffs_ / actual_) * 100} %")
